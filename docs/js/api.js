@@ -4,7 +4,7 @@
 // File: api.js
 // ==========================================================================
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://agriplanum.onrender.com';
 
 async function handleResponse(response) {
     if (response.status === 401 || response.status === 403) {
