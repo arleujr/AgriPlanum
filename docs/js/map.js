@@ -1,61 +1,85 @@
 // ==========================================================================
-// AgriPlanum - Map Service 
+// AgriPlanum - Map Service v2.5 (Manual Draw Restored)
 // Description: Manages all Leaflet map interactions, including initialization,
-//              data rendering (fields, plants), and drawing controls.
+//              data rendering, popups, and both manual and selection drawing.
 // File: map.js
 // ==========================================================================
 
 import { state } from './state.js';
 
-// Module-level variables to hold map layers.
-let fieldsLayer;
-let plantsLayer;
+// Module-level variables to hold the map instance and its layers.
+let fieldsLayer, plantsLayer, highlightLayer, drawnItems;
 let polygonPoints = [];
 let polygonLayer;
 let tempPlantMarker;
-let highlightLayer;
-let selectionRectangle;
 
 /**
- * Initializes the Leaflet map, sets up the tile layer with extended zoom,
- * and configures map controls.
+ * Initializes the Leaflet map, sets up tile layer with extended zoom,
+ * and configures Leaflet.Draw controls for selection.
  * @param {string} containerId - The ID of the HTML element where the map will be rendered.
  * @returns {L.Map} The initialized Leaflet map instance.
  */
 export function initializeMap(containerId) {
-    // Initialize the map with an increased maxZoom level.
-    state.mapInstance = L.map(containerId, {
-        maxZoom: 24
-    }).setView([-14.235, -51.925], 4);
+    if (state.mapInstance) {
+        state.mapInstance.remove();
+    }
 
-    // Set up the tile layer from OpenStreetMap with custom zoom options.
+    state.mapInstance = L.map(containerId, { maxZoom: 24 }).setView([-14.235, -51.925], 5);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 24,       // Allows the map UI to zoom in further.
-        maxNativeZoom: 19  // Informs Leaflet that tiles are only available up to zoom 19; it will upscale them beyond that.
+        maxZoom: 24,
+        maxNativeZoom: 19
     }).addTo(state.mapInstance);
-    
-    // Initialize feature groups to manage layers of fields and plants.
+
+    // Initialize layers for displaying and creating data.
     fieldsLayer = L.featureGroup().addTo(state.mapInstance);
     plantsLayer = L.featureGroup().addTo(state.mapInstance);
-    polygonLayer = L.featureGroup().addTo(state.mapInstance);
     highlightLayer = L.featureGroup().addTo(state.mapInstance);
+    drawnItems = new L.FeatureGroup().addTo(state.mapInstance); // For Leaflet.Draw selection tool
+    polygonLayer = L.featureGroup().addTo(state.mapInstance); // For manual field drawing
+
+    // Configure the Leaflet.Draw control for rectangle selection.
+    const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems, remove: true },
+        draw: {
+            polygon: false, polyline: false, marker: false, circle: false, circlemarker: false,
+            rectangle: { shapeOptions: { color: '#0288D1' } }
+        }
+    });
+    state.mapInstance.addControl(drawControl);
+
+    // Event listener for when a rectangle selection is created.
+    state.mapInstance.on(L.Draw.Event.CREATED, (event) => {
+        const layer = event.layer;
+        drawnItems.clearLayers();
+        drawnItems.addLayer(layer);
+        const bounds = layer.getBounds();
+        window.dispatchEvent(new CustomEvent('selection-drawn', { detail: { bounds: bounds } }));
+    });
+    
+    // Event listener for when the selection is cleared via the draw control.
+    state.mapInstance.on('draw:deleted', () => {
+        window.dispatchEvent(new CustomEvent('selection-cleared'));
+    });
 
     return state.mapInstance;
 }
 
 /**
- * Renders an array of field data as polygons on the map.
- * @param {Array<object>} fields - An array of field objects, each with a 'geometry' property.
- * @param {Function} onDelete - The callback function to execute when a field's delete button is clicked.
+ * Renders field polygons on the map and attaches event listeners to their popups.
+ * @param {Array<object>} fields - Array of field objects.
+ * @param {Function} onDelete - Callback function for the delete button.
  */
 export function drawFields(fields, onDelete) {
+    if (!fieldsLayer) return;
+    fieldsLayer.clearLayers();
+
     fields.forEach(field => {
         const fieldPolygon = L.geoJSON(field.geometry, {
             style: { color: '#2E7D32', weight: 2, opacity: 0.8 }
         }).addTo(fieldsLayer);
         
-        // Create popup content with action buttons.
         const popupContent = `
             <b>${field.name}</b><br>
             Área: ${parseFloat(field.area_hectares).toFixed(2)} ha
@@ -65,16 +89,27 @@ export function drawFields(fields, onDelete) {
             </div>
         `;
         fieldPolygon.bindPopup(popupContent);
+
+        fieldPolygon.on('popupopen', () => {
+            document.querySelector(`.btn-details[data-field-id="${field.id}"]`)?.addEventListener('click', () => {
+                window.dispatchEvent(new CustomEvent('view-field-details', { detail: { id: field.id } }));
+            });
+            document.querySelector(`.btn-delete[data-field-id="${field.id}"]`)?.addEventListener('click', () => {
+                onDelete(field.id, field.name);
+            });
+        });
     });
 }
 
-
 /**
- * Renders an array of plant data as markers on the map.
- * @param {Array<object>} plants - An array of plant objects, each with a 'location' property.
- * @param {Function} onDelete - The callback function to execute when a plant's delete button is clicked.
+ * Renders plant markers on the map and attaches event listeners to their popups.
+ * @param {Array<object>} plants - Array of plant objects.
+ * @param {Function} onDelete - Callback function for the delete button.
  */
 export function drawPlants(plants, onDelete) {
+    if (!plantsLayer) return;
+    plantsLayer.clearLayers();
+
     const plantIcon = L.icon({
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
         iconSize: [12, 20],
@@ -85,7 +120,6 @@ export function drawPlants(plants, onDelete) {
     plants.forEach(plant => {
         const plantMarker = L.marker([plant.location.lat, plant.location.lng], { icon: plantIcon }).addTo(plantsLayer);
         
-        // Create popup content with action buttons.
         const popupContent = `
             <b>Tag:</b> ${plant.unique_tag || 'N/A'}<br>
             <b>Tipo:</b> ${plant.plant_type}
@@ -95,48 +129,21 @@ export function drawPlants(plants, onDelete) {
             </div>
         `;
         plantMarker.bindPopup(popupContent);
-         fieldPolygon.on('popupopen', () => {
-            const detailBtn = document.querySelector(`.btn-details[data-field-id="${field.id}"]`);
-            if (detailBtn) {
-                detailBtn.onclick = () => {
-                    const event = new CustomEvent('view-field-details', { detail: { id: field.id } });
-                    window.dispatchEvent(event);
-                };
-            }
 
-            const deleteBtn = document.querySelector(`.btn-delete[data-field-id="${field.id}"]`);
-            if (deleteBtn) {
-                deleteBtn.onclick = () => onDelete(field.id, field.name);
-            }
+        plantMarker.on('popupopen', () => {
+            document.querySelector(`.btn-details[data-plant-id="${plant.id}"]`)?.addEventListener('click', () => {
+                window.dispatchEvent(new CustomEvent('view-plant-details', { detail: { id: plant.id } }));
+            });
+            document.querySelector(`.btn-delete[data-plant-id="${plant.id}"]`)?.addEventListener('click', () => {
+                onDelete(plant.id, plant.unique_tag);
+            });
         });
     });
 }
 
 /**
- * Removes all field and plant layers from the map.
- */
-export function clearAllDataLayers() {
-    fieldsLayer.clearLayers();
-    plantsLayer.clearLayers();
-}
-
-/**
- * Sets the opacity of the main data layers (fields and plants).
- * Used for providing visual context during creation modes.
- * @param {number} opacity - The opacity value (0.0 to 1.0).
- */
-export function setMapDataOpacity(opacity) {
-    fieldsLayer.setStyle({ opacity: opacity, fillOpacity: opacity * 0.2 });
-    plantsLayer.eachLayer(layer => {
-        if (layer.setOpacity) {
-            layer.setOpacity(opacity);
-        }
-    });
-}
-
-/**
- * Adds a marker to the map for polygon drawing and updates the polygon shape.
- * Dispatches a 'mapchange' event with the calculated area.
+ * Adds a marker for manual polygon drawing and updates the polygon shape.
+ * @fires mapchange - Custom event with calculated area.
  * @param {L.LatLng} latlng - The coordinates where the marker should be added.
  */
 export function addPolygonMarker(latlng) {
@@ -144,13 +151,11 @@ export function addPolygonMarker(latlng) {
     polygonPoints.push(point);
     updatePolygon();
 
-    // Calculate area if a polygon can be formed.
     if (polygonPoints.length >= 3) {
         const turfPolygon = getPolygonGeometry();
         const areaInSqMeters = turf.area(turfPolygon);
         const areaInHectares = areaInSqMeters / 10000;
         
-        // Dispatch custom event with area data.
         const event = new CustomEvent('mapchange', {
             detail: { area: { squareMeters: areaInSqMeters, hectares: areaInHectares } }
         });
@@ -159,26 +164,23 @@ export function addPolygonMarker(latlng) {
 }
 
 /**
- * Redraws the polygon on the map based on the current points.
+ * Helper function to redraw the manual polygon on the map as points are added.
  */
 function updatePolygon() {
-    // Clear existing polygon before drawing a new one.
-    if (polygonLayer.getLayers().length > polygonPoints.length) {
-        polygonLayer.eachLayer(layer => {
-            if (!(layer instanceof L.Marker)) {
-                polygonLayer.removeLayer(layer);
-            }
-        });
-    }
+    polygonLayer.eachLayer(layer => {
+        if (layer instanceof L.Polygon) {
+            polygonLayer.removeLayer(layer);
+        }
+    });
     
-    if (polygonPoints.length >= 3) {
+    if (polygonPoints.length >= 2) {
         const latLngs = polygonPoints.map(p => p.getLatLng());
         L.polygon(latLngs, { color: 'blue' }).addTo(polygonLayer);
     }
 }
 
 /**
- * Constructs a GeoJSON Polygon geometry from the drawn points.
+ * Constructs a GeoJSON Polygon geometry from the manually drawn points.
  * @returns {object|null} A GeoJSON Polygon object or null if not enough points.
  */
 export function getPolygonGeometry() {
@@ -188,8 +190,7 @@ export function getPolygonGeometry() {
         const latlng = p.getLatLng();
         return [latlng.lng, latlng.lat];
     });
-    // Close the polygon loop for valid GeoJSON.
-    coordinates.push(coordinates[0]);
+    coordinates.push(coordinates[0]); // Close the polygon loop.
     
     return {
         type: 'Polygon',
@@ -198,10 +199,10 @@ export function getPolygonGeometry() {
 }
 
 /**
- * Clears all temporary drawings and points related to field creation.
+ * Clears all temporary drawings and points related to manual field creation.
  */
 export function clearDrawing() {
-    polygonLayer.clearLayers();
+    if (polygonLayer) polygonLayer.clearLayers();
     polygonPoints = [];
     const event = new CustomEvent('mapchange', {
         detail: { area: { squareMeters: 0, hectares: 0 } }
@@ -214,11 +215,8 @@ export function clearDrawing() {
  * @param {L.LatLng} latlng - The location for the temporary marker.
  */
 export function showTempPlantMarker(latlng) {
-    clearTempPlantMarker(); // Ensure only one temp marker exists at a time.
-    tempPlantMarker = L.marker(latlng, {
-        opacity: 0.8,
-        icon: L.divIcon({ className: 'blinking-cursor', iconSize: [15, 15] })
-    }).addTo(state.mapInstance);
+    clearTempPlantMarker();
+    tempPlantMarker = L.marker(latlng).addTo(state.mapInstance);
 }
 
 /**
@@ -231,19 +229,39 @@ export function clearTempPlantMarker() {
     }
 }
 
+// --- Funções de Limpeza e Visualização ---
+
+/** Removes all main data layers from the map. */
+export function clearAllDataLayers() {
+    if (fieldsLayer) fieldsLayer.clearLayers();
+    if (plantsLayer) plantsLayer.clearLayers();
+}
+
 /**
- * Highlights a selection of plants on the map with a distinct style.
- * @param {Array<object>} selectedPlants - An array of plant objects to highlight.
+ * Sets the opacity of data layers for contextual creation modes.
+ * @param {number} opacity - The opacity value (0.0 to 1.0).
+ */
+export function setMapDataOpacity(opacity) {
+    if (fieldsLayer) fieldsLayer.setStyle({ opacity: opacity, fillOpacity: opacity * 0.2 });
+    if (plantsLayer) {
+        plantsLayer.eachLayer(layer => {
+            if (layer.setOpacity) layer.setOpacity(opacity);
+        });
+    }
+}
+
+/**
+ * Highlights selected plants with a distinct style.
+ * @param {Array<object>} selectedPlants - Array of plant objects to highlight.
  */
 export function highlightSelectedPlants(selectedPlants) {
-    clearHighlight();
+    if (!highlightLayer) return;
+    highlightLayer.clearLayers();
+
     const highlightIcon = L.icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
     });
 
     selectedPlants.forEach(plant => {
@@ -251,19 +269,14 @@ export function highlightSelectedPlants(selectedPlants) {
     });
 }
 
-/**
- * Removes all highlight markers from the map.
- */
+/** Removes all highlight markers from the map. */
 export function clearHighlight() {
-    highlightLayer.clearLayers();
+    if (highlightLayer) highlightLayer.clearLayers();
 }
 
-/**
- * Clears the user-drawn selection rectangle from the map.
- */
+/** Removes the user-drawn selection rectangle from the map. */
 export function clearSelectionDrawing() {
-    if (selectionRectangle) {
-        state.mapInstance.removeLayer(selectionRectangle);
-        selectionRectangle = null;
+    if (drawnItems) {
+        drawnItems.clearLayers();
     }
 }
