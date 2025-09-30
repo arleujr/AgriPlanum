@@ -68,6 +68,7 @@ export function drawFields(fields, onDelete) {
     });
 }
 
+
 /**
  * Renders an array of plant data as markers on the map.
  * @param {Array<object>} plants - An array of plant objects, each with a 'location' property.
@@ -94,6 +95,20 @@ export function drawPlants(plants, onDelete) {
             </div>
         `;
         plantMarker.bindPopup(popupContent);
+         fieldPolygon.on('popupopen', () => {
+            const detailBtn = document.querySelector(`.btn-details[data-field-id="${field.id}"]`);
+            if (detailBtn) {
+                detailBtn.onclick = () => {
+                    const event = new CustomEvent('view-field-details', { detail: { id: field.id } });
+                    window.dispatchEvent(event);
+                };
+            }
+
+            const deleteBtn = document.querySelector(`.btn-delete[data-field-id="${field.id}"]`);
+            if (deleteBtn) {
+                deleteBtn.onclick = () => onDelete(field.id, field.name);
+            }
+        });
     });
 }
 
