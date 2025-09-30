@@ -35,12 +35,14 @@ app.use(express.json());
 
 // 4. PostgreSQL Connection Setup
 const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'agriplanum_db',
-    password: 'admin', // Your password
-    port: 5432,
+  user: process.env.DB_USER,        // postgres
+  host: process.env.DB_HOST,        // bosliqghwmiflneagyqq.supabase.co
+  database: process.env.DB_NAME,    // postgres
+  password: process.env.DB_PASSWORD,// sua senha resetada
+  port: process.env.DB_PORT,        // 5432
+  ssl: { rejectUnauthorized: false } // 👈 obrigatório pro Supabase
 });
+
 
 // 5. Constants
 const PORT = process.env.PORT || 3000;
