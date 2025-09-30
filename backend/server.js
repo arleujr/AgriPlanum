@@ -34,12 +34,12 @@ app.use(
 app.use(express.json());
 
 // 4. PostgreSQL Connection Setup
-// 4. PostgreSQL Connection Setup
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  family: 4, 
 });
 
 
