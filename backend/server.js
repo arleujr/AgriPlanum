@@ -27,7 +27,7 @@ app.use(
       "style-src": ["'self'", "unpkg.com", "cdnjs.cloudflare.com", "fonts.googleapis.com", "'unsafe-inline'"],
       "img-src": ["'self'", "data:","cdnjs.cloudflare.com","*.tile.openstreetmap.org", "unpkg.com","raw.githubusercontent.com" ],
       "font-src": ["'self'", "cdnjs.cloudflare.com", "fonts.gstatic.com"],
-      "connect-src": ["'self'"],
+      "connect-src": ["'self'","https://agriplanum.onrender.com"],
     },
   })
 );
