@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriPlanum - Crop Planner</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf/turf.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div id="auth-screen" class="screen active">
+        <div class="card" id="auth-container">
+            <div class="logo-container">
+                <img src="logo.png" alt="AgriPlanum Logo">
+            </div>
+            <form id="login-form" class="auth-form active">
+                <h2>Login</h2>
+                <p class="subtitle">Sign in to continue.</p>
+                <label for="login-email">Email:</label>
+                <input type="email" id="login-email" required>
+                <label for="login-password">Password:</label>
+                <input type="password" id="login-password" required>
+                <p id="login-error-message" class="error-message"></p>
+                <button type="submit" class="btn btn-primary">Sign In</button>
+                <p class="toggle-form">Don't have an account?<a href="#" id="show-register">Sign Up</a></p>
+            </form>
+            <form id="register-form" class="auth-form">
+                <h2>Sign Up</h2>
+                <p class="subtitle">Create a new account.</p>
+                <label for="register-email">Email:</label>
+                <input type="email" id="register-email" required>
+                <label for="register-password">Password:</label>
+                <input type="password" id="register-password" required>
+                <p id="register-error-message" class="error-message"></p>
+                <button type="submit" class="btn btn-primary">Register</button>
+                <p class="toggle-form">Already have an account?<a href="#" id="show-login">Login</a></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="setup-screen" class="screen welcome-screen">
+        <div class="welcome-content">
+            <div class="logo-container">
+                <img src="logo.png" alt="AgriPlanum Logo">
+            </div>
+            <h1>Welcome, to AgriPlanum</h1>
+            <p>Structure your field. Simplify your season!</p>
+            <button id="go-to-dashboard-btn" class="btn btn-primary">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> Open Field Center
+            </button>
+        </div>
+    </div>
+
+    <div id="main-app-screen" class="screen">
+        <main>
+            <div class="card">
+                <div class="logo-container">
+                    <img src="logo.png" alt="AgriPlanum Logo">
+                </div>
+                <div class="card-header">
+                    <button id="back-to-setup-btn" class="header-button" title="Back to Selection">
+                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                    </button>
+                    <div class="header-titles">
+                        <h2 id="card-title">Field Center</h2>
+                        <h3 id="app-context-title"></h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="dashboard-view" class="view active">
+                        <div class="dashboard-grid">
+                            <button class="dashboard-button" data-view="cycle-planner-view"><i class="fa-solid fa-arrows-spin" aria-hidden="true"></i><span>Cycle Planner</span></button>
+                            <button class="dashboard-button" data-view="sowing-calculator-view"><i class="fa-solid fa-seedling" aria-hidden="true"></i><span>Sowing Calculator</span></button>
+                            <button class="dashboard-button" data-view="soil-analysis-view"><i class="fa-solid fa-vial-circle-check" aria-hidden="true"></i><span>Soil Analysis</span></button>
+                            <button class="dashboard-button" data-view="map-view"><i class="fa-solid fa-map-marked-alt" aria-hidden="true"></i><span>Field Mapper</span></button>
+                            <button class="dashboard-button" disabled><i class="fa-solid fa-cloud-sun-rain" aria-hidden="true"></i><span>Weather Forecast</span></button>
+                            <button class="dashboard-button" disabled><i class="fa-solid fa-dollar-sign" aria-hidden="true"></i><span>Cost Estimator</span></button>
+                        </div>
+                    </div>
+                    <div id="cycle-planner-view" class="view">
+                        <label for="variety-name">Variety:</label>
+                        <select id="variety-name" required></select>
+
+                        <label for="region-select">Cultivation Zone:</label>
+                        <select id="region-select">
+                            <option value="mg-sp">MG/SP</option>
+                            <option value="go-ms">GO/MS</option>
+                            <option value="mt-south">MT - South</option>
+                            <option value="mt-mid-north">MT - Mid-North (BR 163)</option>
+                            <option value="mt-west">MT - West (Parecis)</option>
+                            <option value="mt-araguaia-valley">MT - Araguaia Valley</option>
+                            <option value="ba-rainfed">BA - Rainfed</option>
+                            <option value="ba-irrigated">BA - Irrigated</option>
+                            <option value="ma-pi-1st">MA/PI - 1st Season</option>
+                            <option value="ma-pi-2nd">MA/PI - 2nd Season</option>
+                        </select>
+
+                        <div id="cultivar-info" class="hidden">
+                            <p id="cultivar-window"></p>
+                            <button id="show-details-btn" class="btn btn-secondary">View Details</button>
+                        </div>
+                        <label for="planting-date">Planting Date:</label>
+                        <input type="date" id="planting-date">
+                        <button id="calculate-btn" class="btn btn-primary">Calculate</button>
+                        <div id="results-container" class="hidden">
+                            <h3>Analysis Results:</h3>
+                            <p id="result-text"></p>
+                        </div>
+                    </div>
+                    <div id="sowing-calculator-view" class="view">
+                        <label for="sowing-area">Area (hectares):</label>
+                        <input type="number" id="sowing-area" placeholder="e.g., 10.5">
+                        <label for="sowing-variety">Variety:</label>
+                        <select id="sowing-variety" required></select>
+                        <label for="germination-rate">Germination Rate (%):</label>
+                        <input type="number" id="germination-rate" placeholder="e.g., 90" min="1" max="100">
+                        <label for="field-conditions">Field Conditions:</label>
+                        <select id="field-conditions">
+                            <option value="good">Good</option>
+                            <option value="average">Average</option>
+                            <option value="poor">Poor</option>
+                        </select>
+                        <button id="calculate-sowing-btn" class="btn btn-primary">Calculate Sowing</button>
+                        <div id="sowing-results-container" class="hidden">
+                            <h3>Sowing Recommendation:</h3>
+                            <p id="sowing-result-text"></p>
+                        </div>
+                    </div>
+                    <div id="soil-analysis-view" class="view">
+                        <p class="module-description">Enter soil analysis data to compare with ideal parameters for the selected variety.</p>
+                        <label for="soil-variety">Variety for Reference:</label>
+                        <select id="soil-variety" required></select>
+                        <div class="form-grid">
+                            <div class="input-group"><label for="soil-ph">pH (CaCl₂):</label><input type="number" id="soil-ph" step="0.1" placeholder="5.5 - 6.5"></div>
+                            <div class="input-group"><label for="soil-v">Base Saturation (V%):</label><input type="number" id="soil-v" placeholder="> 60%"></div>
+                            <div class="input-group"><label for="soil-al">Aluminum (Al³⁺):</label><input type="number" id="soil-al" step="0.1" placeholder="< 0.3 cmolc"></div>
+                            <div class="input-group"><label for="soil-p">Phosphorus (P):</label><input type="number" id="soil-p" placeholder="> 20 ppm"></div>
+                            <div class="input-group"><label for="soil-k">Potassium (K):</label><input type="number" id="soil-k" placeholder="> 120 ppm"></div>
+                            <div class="input-group"><label for="soil-ca">Calcium (Ca):</label><input type="number" id="soil-ca" step="0.1" placeholder="> 2.5 cmolc"></div>
+                            <div class="input-group"><label for="soil-mg">Magnesium (Mg):</label><input type="number" id="soil-mg" step="0.1" placeholder="> 0.8 cmolc"></div>
+                            <div class="input-group"><label for="soil-s">Sulfur (S):</label><input type="number" id="soil-s" placeholder="> 10 ppm"></div>
+                            <div class="input-group"><label for="soil-b">Boron (B):</label><input type="number" id="soil-b" step="0.1" placeholder="> 0.5 ppm"></div>
+                            <div class="input-group"><label for="soil-zn">Zinc (Zn):</label><input type="number" id="soil-zn" step="0.1" placeholder="> 1.2 ppm"></div>
+                            <div class="input-group"><label for="soil-n">Nitrogen (N):</label><input type="number" id="soil-n" step="0.1" placeholder="> 100 ppm"></div>
+                        </div>
+                        <button id="analyze-soil-btn" class="btn btn-primary">Analyze Soil</button>
+                        <div id="soil-results-container" class="hidden">
+                            <h3>Soil Analysis Report:</h3>
+                            <ul id="soil-result-list"></ul>
+                        </div>
+                    </div>
+                    <div id="map-view" class="view">
+                        <p class="module-description" id="map-view-description">Viewing your fields and plants. Use the buttons to add new items.</p>
+                        <div id="map-container"></div>
+
+                        <div id="view-controls" class="map-controls">
+                            <span id="map-view-status"></span>
+                            <div>
+                                <button id="refresh-map-btn" class="btn btn-secondary" title="Atualizar Dados do Mapa">&#x21bb;</button>
+                                <button id="enter-add-field-mode-btn" class="btn btn-primary">Add Field</button>
+                                <button id="enter-add-plant-mode-btn" class="btn btn-primary">Add Plant</button>
+                            </div>
+                        </div>
+                        
+                        <div id="selection-controls" class="map-controls hidden">
+                           <span id="selection-status">0 plants selected</span>
+                           <div>
+                               <button id="cancel-selection-btn" class="btn btn-secondary">Cancel</button>
+                               <button id="create-field-from-selection-btn" class="btn btn-primary">Create Field from Selection</button>
+                           </div>
+                        </div>
+
+                        <div id="field-creation-controls" class="hidden">
+                            <div class="input-group" style="margin-top: 15px;">
+                                <label for="field-name">New Field Name:</label>
+                                <input type="text" id="field-name" placeholder="Ex: Talhão da Sede">
+                            </div>
+                            <div class="map-controls">
+                                <div id="map-results">Area: <strong>0.00 ha</strong></div>
+                                <div>
+                                    <button id="unit-toggle-btn" class="btn btn-secondary">Switch to m²</button>
+                                    <button id="clear-map-btn" class="btn btn-secondary">Clear Points</button>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button id="cancel-field-creation-btn" class="btn btn-secondary">Cancel</button>
+                                <button id="save-field-btn" class="btn btn-primary">Save Field</button>
+                            </div>
+                            <p id="map-message" class="info-message"></p>
+                        </div>
+                        <div id="plant-creation-controls" class="hidden">
+                            <form id="plant-form" style="margin-top: 15px;">
+                                <p id="plant-creation-status" class="info-message">Click on the map to set the plant location.</p>
+                                <button type="button" id="use-gps-btn" class="btn btn-secondary" style="width: 100%; margin-bottom: 15px;">📍 Mark with GPS</button>
+                                <div class="form-grid">
+                                    <div class="input-group">
+                                        <label for="plant-type">Crop Type:</label>
+                                        <select id="plant-type" required disabled>
+                                            <option value="">-- Select --</option>
+                                            <option value="Algodão">Cotton</option>
+                                            <option value="Café">Coffee</option>
+                                            <option value="Banana">Banana</option>
+                                            <option value="Milho">Corn</option>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="plant-tag">Unique Tag (QR Code):</label>
+                                        <div class="input-with-button">
+                                            <input type="text" id="plant-tag" required disabled>
+                                            <button type="button" id="generate-tag-btn" class="btn-icon" title="Gerar Tag Automática" disabled>&#x2699;</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="plant-custom-fields"></div>
+                                <div class="form-actions">
+                                    <button type="button" id="cancel-plant-creation-btn" class="btn btn-secondary">Cancel</button>
+                                    <button type="submit" id="save-plant-btn" class="btn btn-primary" disabled>Save Plant</button>
+                                </div>
+                                 <p id="plant-form-message" class="info-message"></p>
+                            </form>
+                        </div>
+                    </div>
+                    <div id="field-details-view" class="view">
+                        <div class="details-header">
+                            <h3 id="details-field-name">Loading Details...</h3>
+                        </div>
+                        <div class="details-content">
+                            <h4>General Information</h4>
+                            <ul id="details-field-info-list" class="info-list"></ul>
+                            <hr>
+                            <h4>Plants in this Field (<span id="details-plant-count">0</span>)</h4>
+                            <div class="table-container">
+                                <table id="details-plant-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Unique Tag</th>
+                                            <th>Type</th>
+                                            <th>Creation Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="details-plant-table-body"></tbody>
+                                </table>
+                            </div>
+                            <button id="add-plant-to-field-btn" class="btn btn-primary" style="margin-top: 20px;">Add New Plant to this Field</button>
+                        </div>
+                        <button id="back-to-map-view-btn" class="btn btn-secondary" style="margin-top: 20px;">&larr; Back to Map</button>
+                    </div>
+                    <div id="plant-details-view" class="view">
+                        <div class="details-header">
+                            <h3 id="details-plant-tag">Loading...</h3>
+                        </div>
+                        <div class="details-content">
+                            <h4>General Information</h4>
+                            <ul id="details-plant-info-list" class="info-list"></ul>
+                            <hr>
+                            <h4>Custom Data</h4>
+                            <ul id="details-plant-custom-data-list" class="info-list"></ul>
+                        </div>
+                        <button id="back-to-map-from-plant-btn" class="btn btn-secondary" style="margin-top: 20px;">&larr; Back to Map</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <footer>
+            <p>Developed by Arleu Júnior</p>
+        </footer>
+    </div>
+
+    <div id="details-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 id="modal-title"></h3>
+            <div id="modal-details"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
