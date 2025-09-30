@@ -1,5 +1,5 @@
 ### Register a new user
-POST http://localhost:3000/api/register
+POST https://agriplanum.onrender.com/api/register
 Content-Type: application/json
 
 {
@@ -8,15 +8,16 @@ Content-Type: application/json
 }
 
 ### Register the same user again (should fail)
-POST http://localhost:3000/api/register
+POST https://agriplanum.onrender.com/api/register
 Content-Type: application/json
 
 {
     "email": "meuprimeirousuario@email.com",
     "password": "senhaForte123"
 }
+
 ### Login a user (SUCCESS)
-POST http://localhost:3000/api/login
+POST https://agriplanum.onrender.com/api/login
 Content-Type: application/json
 
 {
@@ -25,7 +26,7 @@ Content-Type: application/json
 }
 
 ### Login a user (FAIL - Wrong Password)
-POST http://localhost:3000/api/login
+POST https://agriplanum.onrender.com/api/login
 Content-Type: application/json
 
 {
