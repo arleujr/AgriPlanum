@@ -245,3 +245,24 @@ app.use(express.static(frontendPath));
 app.listen(PORT, () => {
     console.log(`✅ Server is running. Open http://localhost:${PORT} in your browser.`);
 });
+
+// ROTA DE TESTE DE CONEXÃO COM O BANCO DE DADOS
+app.get('/db-test', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const result = await client.query('SELECT NOW()'); // Uma query simples que pega a hora atual do banco
+    client.release(); // Libera a conexão
+    res.json({
+      status: 'success',
+      message: 'Conexão com o banco de dados bem-sucedida!',
+      db_time: result.rows[0].now,
+    });
+  } catch (err) {
+    console.error('Erro no teste de conexão com o banco de dados:', err.stack);
+    res.status(500).json({
+      status: 'error',
+      message: 'Falha ao conectar com o banco de dados.',
+      error: err.message, // Mostra a mensagem de erro específica
+    });
+  }
+});
